@@ -63,9 +63,11 @@ npm run launch:brave
 
 The launcher uses:
 
-- `--load-extension=/home/hipson47/code/wtyczka`
-- `--user-data-dir=/home/hipson47/code/wtyczka/.brave-dev-profile`
 - `--no-first-run`
+
+On Linux Brave, it loads the extension directly from `/home/hipson47/code/wtyczka` and uses `/home/hipson47/code/wtyczka/.brave-dev-profile`.
+
+On Windows Brave launched from WSL, it avoids `\\wsl.localhost` browser profile paths because Chromium's Windows file locking and sandbox APIs can fail there with `Niepoprawna funkcja (0x1)`. In that case the launcher copies the minimal extension files to Windows `%TEMP%\wtyczka-native-pip-extension` and uses `%TEMP%\wtyczka-brave-dev-profile`.
 
 It tries `brave-browser`, then `brave`, then the common Windows Brave path under WSL:
 
