@@ -38,6 +38,26 @@ export function boundedSeekTime(currentTime, delta, duration) {
   return Math.max(0, currentTime + delta);
 }
 
+export function clampVolume(value) {
+  return Number.isFinite(value) ? clamp(value, 0, 1) : 0;
+}
+
+export function steppedVolume(currentVolume, direction, step = 0.05) {
+  const normalizedDirection = direction < 0 ? -1 : 1;
+  return clampVolume(clampVolume(currentVolume) + normalizedDirection * step);
+}
+
+export function applyVolumeChange(video, nextVolume) {
+  const volume = clampVolume(nextVolume);
+  video.volume = volume;
+  video.muted = volume === 0;
+
+  return {
+    muted: video.muted,
+    volume: video.volume
+  };
+}
+
 export function speedLabel(speed) {
   return `${Number(speed).toFixed(2).replace(/\.00$/, "").replace(/0$/, "")}x`;
 }

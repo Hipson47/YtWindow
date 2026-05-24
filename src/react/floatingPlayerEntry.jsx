@@ -4,20 +4,24 @@ import styles from "./floatingPlayer.css?raw";
 import {
   AUTO_HIDE_DELAY_MS,
   SPEED_OPTIONS,
+  applyVolumeChange,
   boundedSeekTime,
   formatTime,
   progressRatio,
-  speedLabel
+  speedLabel,
+  steppedVolume
 } from "./playerUtils.mjs";
 
 const ICONS = {
-  play: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M13 9v18l15-9z" /></svg>,
-  pause: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M12 9h5v18h-5zm7 0h5v18h-5z" /></svg>,
-  rewind: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M17 11v14l-10-7zm12 0v14l-10-7V11z" /><text x="18" y="31" textAnchor="middle" fontSize="7" fill="currentColor" fontFamily="Arial">10</text></svg>,
-  forward: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M19 11v14l10-7zm-12 0v14l10-7V11z" /><text x="18" y="31" textAnchor="middle" fontSize="7" fill="currentColor" fontFamily="Arial">10</text></svg>,
-  volume: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M7 14v8h6l8 6V8l-8 6zm17.5-1.5a8 8 0 0 1 0 11l2.1 2.1a11 11 0 0 0 0-15.2z" /></svg>,
-  muted: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M7 14v8h6l8 6V8l-8 6zm20.7 4 4-4-2.2-2.2-4 4-4-4-2.2 2.2 4 4-4 4 2.2 2.2 4-4 4 4 2.2-2.2z" /></svg>,
-  restore: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M10 10h16v16H10zm3 3v10h10V13zm14-7h3v21h-3zM6 6h21v3H9v18H6z" /></svg>
+  play: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M14 10.4v15.2c0 .9 1 1.4 1.8.9l12.3-7.6c.7-.4.7-1.4 0-1.8L15.8 9.5c-.8-.5-1.8 0-1.8.9z" /></svg>,
+  pause: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M12 10.5c0-.8.6-1.5 1.5-1.5h3c.8 0 1.5.7 1.5 1.5v15c0 .8-.7 1.5-1.5 1.5h-3c-.9 0-1.5-.7-1.5-1.5zm8 0c0-.8.7-1.5 1.5-1.5h3c.9 0 1.5.7 1.5 1.5v15c0 .8-.6 1.5-1.5 1.5h-3c-.8 0-1.5-.7-1.5-1.5z" /></svg>,
+  rewind: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M16.6 9.4a1 1 0 0 1 1.4.9v15.4a1 1 0 0 1-1.4.9L5.2 18.9a1.1 1.1 0 0 1 0-1.8zm12.5 0a1 1 0 0 1 1.5.9v15.4a1 1 0 0 1-1.5.9l-11.3-7.7a1.1 1.1 0 0 1 0-1.8z" /><path d="M13.4 29.5h-1.7v-5.3l-1.7.5v-1.3l3.2-1h.2zm6.1-3c0 1-.2 1.8-.7 2.3-.4.6-1.1.8-2 .8s-1.6-.2-2-.8c-.5-.5-.7-1.3-.7-2.3v-1.2c0-1 .2-1.8.7-2.3.4-.6 1.1-.8 2-.8s1.6.2 2 .8c.5.5.7 1.3.7 2.3zm-1.7-1.5c0-.6-.1-1-.2-1.2-.2-.3-.5-.4-.8-.4s-.6.1-.8.4c-.1.2-.2.6-.2 1.2v1.8c0 .6.1 1 .2 1.2.2.3.5.4.8.4s.6-.1.8-.4c.1-.2.2-.6.2-1.2z" /></svg>,
+  forward: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M19.4 9.4a1 1 0 0 0-1.4.9v15.4a1 1 0 0 0 1.4.9l11.4-7.7a1.1 1.1 0 0 0 0-1.8zM6.9 9.4a1 1 0 0 0-1.5.9v15.4a1 1 0 0 0 1.5.9l11.3-7.7a1.1 1.1 0 0 0 0-1.8z" /><path d="M13.4 29.5h-1.7v-5.3l-1.7.5v-1.3l3.2-1h.2zm6.1-3c0 1-.2 1.8-.7 2.3-.4.6-1.1.8-2 .8s-1.6-.2-2-.8c-.5-.5-.7-1.3-.7-2.3v-1.2c0-1 .2-1.8.7-2.3.4-.6 1.1-.8 2-.8s1.6.2 2 .8c.5.5.7 1.3.7 2.3zm-1.7-1.5c0-.6-.1-1-.2-1.2-.2-.3-.5-.4-.8-.4s-.6.1-.8.4c-.1.2-.2.6-.2 1.2v1.8c0 .6.1 1 .2 1.2.2.3.5.4.8.4s.6-.1.8-.4c.1-.2.2-.6.2-1.2z" /></svg>,
+  volumeHigh: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M7 14.5c0-.8.7-1.5 1.5-1.5H13l7.1-5.3c1-.7 2.4 0 2.4 1.2v18.2c0 1.2-1.4 1.9-2.4 1.2L13 23H8.5c-.8 0-1.5-.7-1.5-1.5zm18.5-3.2a1.4 1.4 0 0 1 2 0 9.5 9.5 0 0 1 0 13.4 1.4 1.4 0 0 1-2-2 6.7 6.7 0 0 0 0-9.4 1.4 1.4 0 0 1 0-2zm3.8-3.8a1.4 1.4 0 0 1 2 0 14.9 14.9 0 0 1 0 21 1.4 1.4 0 1 1-2-2 12.1 12.1 0 0 0 0-17.1 1.4 1.4 0 0 1 0-1.9z" /></svg>,
+  volumeLow: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M7 14.5c0-.8.7-1.5 1.5-1.5H13l7.1-5.3c1-.7 2.4 0 2.4 1.2v18.2c0 1.2-1.4 1.9-2.4 1.2L13 23H8.5c-.8 0-1.5-.7-1.5-1.5zm18.5-3.2a1.4 1.4 0 0 1 2 0 9.5 9.5 0 0 1 0 13.4 1.4 1.4 0 0 1-2-2 6.7 6.7 0 0 0 0-9.4 1.4 1.4 0 0 1 0-2z" /></svg>,
+  muted: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M7 14.5c0-.8.7-1.5 1.5-1.5H13l7.1-5.3c1-.7 2.4 0 2.4 1.2v18.2c0 1.2-1.4 1.9-2.4 1.2L13 23H8.5c-.8 0-1.5-.7-1.5-1.5zm20.1 3.5-3.2-3.2 2-2 3.2 3.2 3.2-3.2 2 2-3.2 3.2 3.2 3.2-2 2-3.2-3.2-3.2 3.2-2-2z" /></svg>,
+  speed: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M18 7a13 13 0 0 0-11.6 18.9c.3.7 1.2 1 1.9.6.7-.3 1-1.2.6-1.9A10.2 10.2 0 1 1 28.7 21c-.2.8.2 1.5 1 1.8.7.2 1.5-.2 1.7-1A13 13 0 0 0 18 7zm7.1 7.6a1.3 1.3 0 0 0-1.8 0l-6.1 5.2a2.8 2.8 0 1 0 2 2l5.9-5.4c.5-.5.5-1.3 0-1.8z" /></svg>,
+  restore: <svg viewBox="0 0 36 36" aria-hidden="true"><path d="M10 8.5c0-.8.7-1.5 1.5-1.5H28c.8 0 1.5.7 1.5 1.5V25c0 .8-.7 1.5-1.5 1.5h-3V23h1V10H13v1h-3zm-3.5 5c0-.8.7-1.5 1.5-1.5h16.5c.8 0 1.5.7 1.5 1.5V30c0 .8-.7 1.5-1.5 1.5H8c-.8 0-1.5-.7-1.5-1.5zm3 1.5v13.5H23V15z" /></svg>
 };
 
 function readVideoState(video) {
@@ -105,13 +109,44 @@ function ProgressBar({ currentTime, duration, onSeek, onReveal, ownerWindow }) {
   );
 }
 
-function VolumeControl({ muted, volume, onMute, onVolume, onReveal }) {
+function VolumeControl({ muted, onActiveChange, onMute, onReveal, onVolume, ownerWindow, volume }) {
+  const activeTimerRef = useRef(0);
+  const [isInteracting, setIsInteracting] = useState(false);
   const visibleVolume = muted ? 0 : volume;
+  const volumeIcon = muted || volume === 0 ? ICONS.muted : volume < 0.5 ? ICONS.volumeLow : ICONS.volumeHigh;
+
+  const setActive = useCallback((active) => {
+    setIsInteracting(active);
+    onActiveChange(active);
+    onReveal();
+  }, [onActiveChange, onReveal]);
+
+  useEffect(() => {
+    if (!isInteracting) {
+      return undefined;
+    }
+
+    const stopInteraction = () => setActive(false);
+    ownerWindow.addEventListener("pointerup", stopInteraction, { once: true });
+    ownerWindow.addEventListener("blur", stopInteraction, { once: true });
+
+    return () => {
+      ownerWindow.removeEventListener("pointerup", stopInteraction);
+      ownerWindow.removeEventListener("blur", stopInteraction);
+    };
+  }, [isInteracting, ownerWindow, setActive]);
+
+  useEffect(() => () => ownerWindow.clearTimeout(activeTimerRef.current), [ownerWindow]);
 
   return (
-    <div className="ytp-volume">
-      <IconButton ariaLabel={muted || volume === 0 ? "Unmute" : "Mute"} onClick={onMute}>
-        {muted || volume === 0 ? ICONS.muted : ICONS.volume}
+    <div className={`ytp-volume ${isInteracting ? "is-active" : ""}`}>
+      <IconButton ariaLabel={muted || volume === 0 ? "Unmute" : "Mute"} onClick={() => {
+        setActive(true);
+        ownerWindow.clearTimeout(activeTimerRef.current);
+        activeTimerRef.current = ownerWindow.setTimeout(() => setActive(false), 1600);
+        onMute();
+      }}>
+        {volumeIcon}
       </IconButton>
       <input
         className="ytp-volume__slider"
@@ -122,10 +157,13 @@ function VolumeControl({ muted, volume, onMute, onVolume, onReveal }) {
         aria-label="Volume"
         value={visibleVolume}
         style={{ "--volume-percent": `${Math.round(visibleVolume * 100)}%` }}
+        onFocus={() => setActive(true)}
+        onBlur={() => setActive(false)}
         onChange={(event) => {
           onReveal();
           onVolume(Number(event.currentTarget.value));
         }}
+        onPointerDown={() => setActive(true)}
       />
     </div>
   );
@@ -159,7 +197,8 @@ function SpeedMenu({ ownerWindow, playbackRate, onSpeed, onReveal }) {
           setOpen((current) => !current);
         }}
       >
-        {speedLabel(playbackRate)}
+        {ICONS.speed}
+        <span className="ytp-speed__label">{speedLabel(playbackRate)}</span>
       </IconButton>
       <div className={`ytp-speed__menu ${open ? "is-open" : ""}`} role="menu">
         {SPEED_OPTIONS.map((speed) => {
@@ -203,7 +242,9 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
   const videoHostRef = useRef(null);
   const hideTimerRef = useRef(0);
   const frameRef = useRef(0);
+  const lastNonZeroVolumeRef = useRef(video.volume > 0 ? video.volume : 1);
   const [videoState, setVideoState] = useState(() => readVideoState(video));
+  const [volumeActive, setVolumeActive] = useState(false);
   const [visible, setVisible] = useState(true);
   const [seekFeedback, setSeekFeedback] = useState("");
   const isMenuOpen = false;
@@ -239,7 +280,17 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
   const reveal = useCallback(() => {
     setVisible(true);
     ownerWindow.clearTimeout(hideTimerRef.current);
-    if (!video.paused) {
+    if (!video.paused && !volumeActive) {
+      hideTimerRef.current = ownerWindow.setTimeout(() => setVisible(false), AUTO_HIDE_DELAY_MS);
+    }
+  }, [ownerWindow, video, volumeActive]);
+
+  const setVolumeInteractionActive = useCallback((active) => {
+    setVolumeActive(active);
+    setVisible(true);
+    ownerWindow.clearTimeout(hideTimerRef.current);
+
+    if (!active && !video.paused) {
       hideTimerRef.current = ownerWindow.setTimeout(() => setVisible(false), AUTO_HIDE_DELAY_MS);
     }
   }, [ownerWindow, video]);
@@ -266,6 +317,33 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
     sync();
   }, [reveal, sync, video]);
 
+  const setVideoVolume = useCallback((nextVolume) => {
+    const state = applyVolumeChange(video, nextVolume);
+    if (state.volume > 0) {
+      lastNonZeroVolumeRef.current = state.volume;
+    }
+    reveal();
+    sync();
+  }, [reveal, sync, video]);
+
+  const toggleMute = useCallback(() => {
+    reveal();
+    if (video.muted || video.volume === 0) {
+      video.volume = lastNonZeroVolumeRef.current || 1;
+      video.muted = false;
+    } else {
+      lastNonZeroVolumeRef.current = video.volume || lastNonZeroVolumeRef.current;
+      video.muted = true;
+    }
+    sync();
+  }, [reveal, sync, video]);
+
+  useEffect(() => {
+    if (!videoState.muted && videoState.volume > 0) {
+      lastNonZeroVolumeRef.current = videoState.volume;
+    }
+  }, [videoState.muted, videoState.volume]);
+
   useEffect(() => {
     const handleKeydown = (event) => {
       if (event.target?.tagName === "INPUT") {
@@ -282,22 +360,29 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
         seekBy(10);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setVideoVolume(steppedVolume(video.volume, 1));
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setVideoVolume(steppedVolume(video.volume, -1));
       } else if (event.key.toLowerCase() === "m") {
         event.preventDefault();
-        video.muted = !video.muted;
+        toggleMute();
       }
     };
 
     ownerWindow.addEventListener("keydown", handleKeydown);
     return () => ownerWindow.removeEventListener("keydown", handleKeydown);
-  }, [ownerWindow, reveal, seekBy, togglePlay, video]);
+  }, [ownerWindow, reveal, seekBy, setVideoVolume, toggleMute, togglePlay, video]);
 
   const rootClass = useMemo(() => [
     "ytp-clone",
     visible ? "is-visible" : "",
     videoState.paused ? "is-paused" : "",
+    volumeActive ? "is-volume-active" : "",
     isMenuOpen ? "is-menu-open" : ""
-  ].filter(Boolean).join(" "), [isMenuOpen, videoState.paused, visible]);
+  ].filter(Boolean).join(" "), [isMenuOpen, videoState.paused, visible, volumeActive]);
 
   const playIcon = videoState.paused ? ICONS.play : ICONS.pause;
   const playLabel = videoState.paused ? "Play" : "Pause";
@@ -322,13 +407,7 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
               <IconButton ariaLabel={playLabel} onClick={togglePlay}>{playIcon}</IconButton>
               <IconButton ariaLabel="Seek back 10 seconds" className="ytp-secondary" onClick={() => seekBy(-10)}>{ICONS.rewind}</IconButton>
               <IconButton ariaLabel="Seek forward 10 seconds" className="ytp-secondary" onClick={() => seekBy(10)}>{ICONS.forward}</IconButton>
-              <VolumeControl muted={videoState.muted} volume={videoState.volume} onMute={() => {
-                video.muted = !video.muted;
-                reveal();
-              }} onReveal={reveal} onVolume={(volume) => {
-                video.volume = volume;
-                video.muted = volume === 0;
-              }} />
+              <VolumeControl muted={videoState.muted} onActiveChange={setVolumeInteractionActive} onMute={toggleMute} onReveal={reveal} onVolume={setVideoVolume} ownerWindow={ownerWindow} volume={videoState.volume} />
             </div>
             <div className="ytp-clone__time">
               <span>{formatTime(videoState.currentTime)}</span>
