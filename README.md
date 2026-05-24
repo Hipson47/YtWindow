@@ -22,7 +22,10 @@ The active project directory is:
 - `src/pipRuntime.js` contains shared helpers for toasts, video selection, time formatting, and compatibility.
 - `src/nativePipRuntime.js` contains the classic native `HTMLVideoElement.requestPictureInPicture()` fallback.
 - `src/documentPipRuntime.js` contains the YouTube-specific Document Picture-in-Picture lifecycle and restore logic.
-- `src/floatingPlayerUI.js` renders the premium floating mini-player document and YouTube-like controls.
+- `src/react/floatingPlayerEntry.jsx` mounts the React premium floating mini-player UI.
+- `src/react/floatingPlayer.css` contains the YouTube-like visual system for the floating controls.
+- `src/react/playerUtils.mjs` contains tested UI math helpers for progress, speed labels, and seek bounds.
+- `dist/floatingPlayerUI.global.js` is the built static React bundle loaded by the extension content script.
 - `src/runTogglePiP.js` calls the native fallback for the browser extension icon path.
 - `src/youtubeToolbar.js` adds the YouTube player toolbar button without auto-triggering Picture-in-Picture on load.
 - `src/youtubeToolbar.css` styles the YouTube toolbar button to fit native player controls.
@@ -57,7 +60,7 @@ The YouTube content script does not start Picture-in-Picture on page load. PiP s
 
 ## Floating Player UI
 
-The Document Picture-in-Picture window uses a static local UI module, not a runtime dev server or CDN dependency.
+The Document Picture-in-Picture window uses a locally bundled React UI. It does not use a runtime dev server, CDN dependency, remote script, analytics, or telemetry.
 
 - The video fills the floating window with `object-fit: contain`.
 - Controls overlay the video with YouTube-like dark gradients.
@@ -67,8 +70,9 @@ The Document Picture-in-Picture window uses a static local UI module, not a runt
 - The volume slider is styled locally and avoids default browser range styling where supported.
 - Playback speed uses a custom dark menu instead of a native dropdown.
 - Controls auto-hide while playing and reappear on movement, focus, keyboard interaction, pause, seeking, or menu use.
+- Seek backward and seek forward show brief animated feedback overlays.
 
-React is intentionally not bundled yet. The current UI polish did not require a framework, and avoiding a build step keeps the extension simpler under Manifest V3 CSP. A React migration can still be introduced later if component complexity grows.
+The React bundle is built with Vite into `dist/floatingPlayerUI.global.js`, which exposes the same `NativePiPFloatingPlayerUI.mount(...)` contract used by the existing Document PiP runtime.
 
 ## Native PiP vs Document Picture-in-Picture
 
@@ -93,18 +97,21 @@ https://music.youtube.com/*
 ## Test And Validation Commands
 
 ```bash
+npm run build
 npm test
 npm run check
 npm run validate
 ```
 
-There is currently no build command because the extension runs from static files.
+`npm run build` creates `dist/floatingPlayerUI.global.js` from the React source.
 
 `npm test` runs behavior tests for video selection, manifest permissions, native fallback behavior, Document PiP fallback behavior, restore lifecycle, and toolbar idempotency.
 
-`npm run check` validates the manifest, checks that broad host permissions are not requested, validates YouTube content-script assets, and syntax-checks JavaScript files.
+`npm run check` builds the React bundle, validates the manifest, checks that broad host permissions are not requested, validates YouTube content-script assets, and syntax-checks JavaScript files.
 
 `npm run validate` runs every local verification command.
+
+After changing React UI files, run `npm run build` or `npm run validate`, then reload the unpacked extension in `brave://extensions`.
 
 ## Launch In Brave With A Temporary Dev Profile
 
@@ -173,7 +180,6 @@ The normal/default Brave profile is not modified. The temporary profile director
 
 - Run headed Brave QA on several YouTube layouts and window sizes.
 - Add an optional captions control only if it can be backed by stable browser/video capabilities.
-- Consider a React or component build step only if future controls make the static UI module hard to maintain.
 - Add a short-lived action badge when injection is blocked on restricted pages.
 - Add browser-level smoke tests if a stable headed Brave automation environment is available.
 - Add frame-aware support for embedded videos where Chromium allows it.

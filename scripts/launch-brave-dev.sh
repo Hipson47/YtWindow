@@ -26,6 +26,7 @@ sync_extension_for_windows_brave() {
     "$ROOT_DIR/manifest.json" \
     "$ROOT_DIR/background.js" \
     "$ROOT_DIR/src" \
+    "$ROOT_DIR/dist" \
     "$extension_copy/"
 
   printf '%s\n' "$extension_copy"
