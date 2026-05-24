@@ -22,7 +22,7 @@ The active project directory is:
 - `src/pipRuntime.js` contains shared helpers for toasts, video selection, time formatting, and compatibility.
 - `src/nativePipRuntime.js` contains the classic native `HTMLVideoElement.requestPictureInPicture()` fallback.
 - `src/documentPipRuntime.js` contains the YouTube-specific Document Picture-in-Picture lifecycle and restore logic.
-- `src/floatingPlayerUI.js` renders the premium floating mini-player document and controls.
+- `src/floatingPlayerUI.js` renders the premium floating mini-player document and YouTube-like controls.
 - `src/runTogglePiP.js` calls the native fallback for the browser extension icon path.
 - `src/youtubeToolbar.js` adds the YouTube player toolbar button without auto-triggering Picture-in-Picture on load.
 - `src/youtubeToolbar.css` styles the YouTube toolbar button to fit native player controls.
@@ -55,6 +55,21 @@ The active project directory is:
 
 The YouTube content script does not start Picture-in-Picture on page load. PiP starts only from an explicit user click.
 
+## Floating Player UI
+
+The Document Picture-in-Picture window uses a static local UI module, not a runtime dev server or CDN dependency.
+
+- The video fills the floating window with `object-fit: contain`.
+- Controls overlay the video with YouTube-like dark gradients.
+- Center play and seek controls scale with `clamp()` sizing.
+- The bottom toolbar uses compact white controls and a red watched progress segment.
+- The progress bar supports click and drag scrubbing.
+- The volume slider is styled locally and avoids default browser range styling where supported.
+- Playback speed uses a custom dark menu instead of a native dropdown.
+- Controls auto-hide while playing and reappear on movement, focus, keyboard interaction, pause, seeking, or menu use.
+
+React is intentionally not bundled yet. The current UI polish did not require a framework, and avoiding a build step keeps the extension simpler under Manifest V3 CSP. A React migration can still be introduced later if component complexity grows.
+
 ## Native PiP vs Document Picture-in-Picture
 
 YouTube toolbar mode prefers Document Picture-in-Picture. That API lets the extension create a small floating document and place the real video element plus custom controls inside it.
@@ -82,6 +97,8 @@ npm test
 npm run check
 npm run validate
 ```
+
+There is currently no build command because the extension runs from static files.
 
 `npm test` runs behavior tests for video selection, manifest permissions, native fallback behavior, Document PiP fallback behavior, restore lifecycle, and toolbar idempotency.
 
@@ -126,7 +143,8 @@ The normal/default Brave profile is not modified. The temporary profile director
 - YouTube toolbar button: open a YouTube video and confirm a small PiP button appears in the right player controls.
 - Premium YouTube floating player: click the toolbar button and confirm a Document Picture-in-Picture window opens when supported.
 - Center controls: resize the floating window and confirm play/pause plus seek back/forward controls scale and remain usable.
-- Bottom bar: confirm current time, duration, scrubber, play/pause, mute, volume, seek buttons, playback speed, and close/restore controls work.
+- Bottom bar: confirm current time, duration, red progress scrubber, play/pause, mute, volume, seek buttons, playback speed menu, and close/restore controls work.
+- Auto-hide: while playing, stop moving the pointer and confirm controls hide, then move/focus/press a key and confirm they return.
 - Restore: close the floating window and confirm the video returns to the YouTube page cleanly.
 - Fallback: if Document Picture-in-Picture is unsupported, confirm the toolbar button falls back to native video PiP.
 - YouTube SPA navigation: navigate to another video without a full reload and confirm the PiP button appears once, without duplicates.
@@ -149,12 +167,13 @@ The normal/default Brave profile is not modified. The temporary profile director
 - Moving YouTube's real video element into a floating document is intentionally restored on close/navigation, but YouTube DOM changes can still affect behavior.
 - The YouTube toolbar button depends on public DOM structure such as `.ytp-right-controls`, which YouTube can change.
 - The toolbar integration intentionally does not bypass ads, restrictions, or private YouTube player APIs.
+- The floating player UI is designed to feel YouTube-like, but it is not a wholesale copy of YouTube's private internal controls DOM.
 
 ## Recommended Next Steps
 
-- Add toolbar icons.
 - Run headed Brave QA on several YouTube layouts and window sizes.
 - Add an optional captions control only if it can be backed by stable browser/video capabilities.
+- Consider a React or component build step only if future controls make the static UI module hard to maintain.
 - Add a short-lived action badge when injection is blocked on restricted pages.
 - Add browser-level smoke tests if a stable headed Brave automation environment is available.
 - Add frame-aware support for embedded videos where Chromium allows it.
