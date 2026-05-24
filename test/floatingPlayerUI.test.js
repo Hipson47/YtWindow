@@ -34,6 +34,16 @@ test("React floating player source uses cohesive inline media icons", () => {
   assert.doesNotMatch(source, /<text/);
 });
 
+test("seek icons do not render visible numeric labels", () => {
+  const source = readFileSync(join(__dirname, "..", "src", "react", "floatingPlayerEntry.jsx"), "utf8");
+  const iconBlock = source.slice(source.indexOf("const ICONS = {"), source.indexOf("};", source.indexOf("const ICONS = {")));
+  const seekIconMarkup = [iconBlock.match(/rewind:\s*(<svg[\s\S]*?<\/svg>),/)?.[1], iconBlock.match(/forward:\s*(<svg[\s\S]*?<\/svg>),/)?.[1]].join("\n");
+
+  assert.doesNotMatch(seekIconMarkup, /<text\b/);
+  assert.doesNotMatch(seekIconMarkup, />\s*10\s*</);
+  assert.doesNotMatch(seekIconMarkup, /\bfont(Size|Family)?=/);
+});
+
 test("floating player helper functions are stable", async () => {
   const floatingPlayerUtils = await import("../src/react/playerUtils.mjs");
 
@@ -43,6 +53,8 @@ test("floating player helper functions are stable", async () => {
   assert.equal(floatingPlayerUtils.progressRatio(10, 0), 0);
   assert.equal(floatingPlayerUtils.boundedSeekTime(5, -10, 100), 0);
   assert.equal(floatingPlayerUtils.boundedSeekTime(95, 10, 100), 100);
+  assert.equal(floatingPlayerUtils.boundedSeekTime(50, -10, 100), 40);
+  assert.equal(floatingPlayerUtils.boundedSeekTime(50, 10, 100), 60);
   assert.equal(floatingPlayerUtils.clampVolume(2), 1);
   assert.equal(floatingPlayerUtils.clampVolume(-1), 0);
   assert.equal(floatingPlayerUtils.steppedVolume(0.98, 1), 1);
