@@ -1,0 +1,15 @@
+{
+  "name": "native-picture-in-picture-toggle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal Brave/Chromium extension that toggles native Picture-in-Picture for the active video.",
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check-extension.js",
+    "validate": "npm run check && npm test",
+    "launch:brave": "bash scripts/launch-brave-dev.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

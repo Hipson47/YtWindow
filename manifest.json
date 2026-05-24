@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Native Picture-in-Picture Toggle",
+  "version": "1.0.0",
+  "description": "Toggle browser-native Picture-in-Picture for the active video on the current tab.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_title": "Toggle Picture-in-Picture"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
