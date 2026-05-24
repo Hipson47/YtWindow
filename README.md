@@ -107,11 +107,13 @@ npm run validate
 
 `npm test` runs behavior tests for video selection, manifest permissions, native fallback behavior, Document PiP fallback behavior, restore lifecycle, and toolbar idempotency.
 
-`npm run check` builds the React bundle, validates the manifest, checks that broad host permissions are not requested, validates YouTube content-script assets, and syntax-checks JavaScript files.
+`npm run check` builds the React bundle, validates the manifest, checks that broad host permissions are not requested, validates YouTube content-script assets, rejects browser-incompatible bundle globals such as `process.env`, and syntax-checks JavaScript files.
 
 `npm run validate` runs every local verification command.
 
 After changing React UI files, run `npm run build` or `npm run validate`, then reload the unpacked extension in `brave://extensions`.
+
+If the YouTube floating player stops opening after UI changes, run `npm run validate` first. It rebuilds `dist/floatingPlayerUI.global.js` and verifies that the content-script bundle exposes `NativePiPFloatingPlayerUI.mount(...)` without Node-only runtime globals.
 
 ## Launch In Brave With A Temporary Dev Profile
 

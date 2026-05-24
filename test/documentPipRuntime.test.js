@@ -50,6 +50,59 @@ test("Document PiP runtime falls back to native PiP when unsupported", async () 
   delete globalThis.NativePiPDocumentRuntime;
 });
 
+test("Document PiP runtime reports a missing floating player UI bundle", async () => {
+  const modulePath = require.resolve("../src/documentPipRuntime");
+  delete require.cache[modulePath];
+
+  const originalDocumentPictureInPicture = globalThis.documentPictureInPicture;
+  const originalSharedRuntime = globalThis.NativePiPSharedRuntime;
+  const originalNativeRuntime = globalThis.NativePiPNativeRuntime;
+  const originalFloatingPlayerUI = globalThis.NativePiPFloatingPlayerUI;
+  const originalConsoleError = console.error;
+
+  let toastMessage = "";
+  let nativeCalls = 0;
+  let selectCalls = 0;
+
+  globalThis.documentPictureInPicture = {
+    requestWindow: async () => {
+      throw new Error("requestWindow should not be called without UI bundle");
+    }
+  };
+  globalThis.NativePiPSharedRuntime = {
+    selectBestVideo: () => {
+      selectCalls += 1;
+      return null;
+    },
+    showToast: (message) => {
+      toastMessage = message;
+    }
+  };
+  globalThis.NativePiPNativeRuntime = {
+    toggleNativePictureInPicture: async () => {
+      nativeCalls += 1;
+      return { ok: true, action: "enter-native" };
+    }
+  };
+  delete globalThis.NativePiPFloatingPlayerUI;
+  console.error = () => {};
+
+  const runtime = require("../src/documentPipRuntime");
+  const result = await runtime.openPremiumPlayer();
+
+  assert.deepEqual(result, { ok: false, reason: "missing-ui" });
+  assert.match(toastMessage, /Floating player UI failed to load/);
+  assert.equal(nativeCalls, 0);
+  assert.equal(selectCalls, 0);
+
+  globalThis.documentPictureInPicture = originalDocumentPictureInPicture;
+  globalThis.NativePiPSharedRuntime = originalSharedRuntime;
+  globalThis.NativePiPNativeRuntime = originalNativeRuntime;
+  globalThis.NativePiPFloatingPlayerUI = originalFloatingPlayerUI;
+  console.error = originalConsoleError;
+  delete globalThis.NativePiPDocumentRuntime;
+});
+
 test("Document PiP restore context returns video to its anchor", () => {
   const modulePath = require.resolve("../src/documentPipRuntime");
   delete require.cache[modulePath];

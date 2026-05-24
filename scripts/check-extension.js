@@ -4,6 +4,7 @@ const { spawnSync } = require("node:child_process");
 
 const root = join(__dirname, "..");
 const manifestPath = join(root, "manifest.json");
+const floatingPlayerBundlePath = join(root, "dist", "floatingPlayerUI.global.js");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 
 function assert(condition, message) {
@@ -50,6 +51,16 @@ for (const asset of [
 ]) {
   assert(existsSync(join(root, asset)), `Manifest asset does not exist: ${asset}`);
 }
+
+assert(existsSync(floatingPlayerBundlePath), "Built floating player bundle is missing. Run npm run build.");
+
+const floatingPlayerBundle = readFileSync(floatingPlayerBundlePath, "utf8");
+assert(floatingPlayerBundle.includes("NativePiPFloatingPlayerUI"), "Floating player bundle must expose NativePiPFloatingPlayerUI.");
+assert(floatingPlayerBundle.includes("mount"), "Floating player bundle must expose a mount contract.");
+assert(!floatingPlayerBundle.includes("process.env"), "Floating player bundle must not contain process.env.");
+assert(!/\bprocess\.(cwd|version|versions|platform|browser)\b/.test(floatingPlayerBundle), "Floating player bundle contains Node-only process globals.");
+assert(!/\brequire\s*\(/.test(floatingPlayerBundle), "Floating player bundle must not contain CommonJS require calls.");
+assert(!/\bmodule\.exports\b/.test(floatingPlayerBundle), "Floating player bundle must not contain module.exports.");
 
 for (const file of collectJavaScriptFiles(root)) {
   const result = spawnSync(process.execPath, ["--check", file], {

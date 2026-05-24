@@ -40,6 +40,25 @@
     }
   }
 
+  function formatRuntimeError(error) {
+    if (!error) {
+      return "Unknown error";
+    }
+
+    const name = error.name || "Error";
+    const message = error.message || String(error);
+    return `${name}: ${message}`;
+  }
+
+  function getFloatingPlayerUI() {
+    const floatingPlayerUI = globalObject.NativePiPFloatingPlayerUI;
+    if (floatingPlayerUI && typeof floatingPlayerUI.mount === "function") {
+      return floatingPlayerUI;
+    }
+
+    return null;
+  }
+
   async function openPremiumPlayer() {
     const shared = globalObject.NativePiPSharedRuntime;
 
@@ -50,6 +69,14 @@
 
     if (!isSupported()) {
       return globalObject.NativePiPNativeRuntime.toggleNativePictureInPicture();
+    }
+
+    const floatingPlayerUI = getFloatingPlayerUI();
+    if (!floatingPlayerUI) {
+      const message = "Floating player UI failed to load. Run npm run build, reload the extension, and try again.";
+      console.error("Document Picture-in-Picture failed: missing NativePiPFloatingPlayerUI.mount.");
+      shared.showToast(message);
+      return { ok: false, reason: "missing-ui" };
     }
 
     const video = shared.selectBestVideo();
@@ -107,12 +134,18 @@
         restoreAndClose
       };
 
-      mountedUi = globalObject.NativePiPFloatingPlayerUI.mount({
-        pipWindow,
-        video,
-        title: globalObject.document.title || "Floating video",
-        onRestore: restoreAndClose
-      });
+      try {
+        mountedUi = floatingPlayerUI.mount({
+          pipWindow,
+          video,
+          title: globalObject.document.title || "Floating video",
+          onRestore: restoreAndClose
+        });
+      } catch (error) {
+        console.error(`Floating player UI mount failed: ${formatRuntimeError(error)}`, error);
+        shared.showToast("Floating player UI failed to load. Check the page console for details.");
+        throw error;
+      }
 
       pipWindow.addEventListener("pagehide", restoreAndClose, { once: true });
       globalObject.addEventListener("pagehide", restoreAndClose);
@@ -124,7 +157,7 @@
 
       return { ok: true, action: "enter-document" };
     } catch (error) {
-      console.warn("Document Picture-in-Picture failed.", error);
+      console.warn(`Document Picture-in-Picture failed: ${formatRuntimeError(error)}`, error);
       restoreAndClose();
       return globalObject.NativePiPNativeRuntime.toggleNativePictureInPicture();
     }
@@ -132,6 +165,8 @@
 
   const api = {
     createRestoreContext,
+    formatRuntimeError,
+    getFloatingPlayerUI,
     isSupported,
     openPremiumPlayer,
     restoreVideo
