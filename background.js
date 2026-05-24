@@ -1,6 +1,8 @@
 const INJECTION_FILES = [
   "src/videoSelector.js",
-  "src/injectedPiP.js"
+  "src/pipRuntime.js",
+  "src/nativePipRuntime.js",
+  "src/runTogglePiP.js"
 ];
 
 chrome.action.onClicked.addListener(async (tab) => {

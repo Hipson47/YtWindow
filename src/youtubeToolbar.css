@@ -1,0 +1,17 @@
+.ytwindow-pip-button svg {
+  display: block;
+  height: 100%;
+  margin: 0 auto;
+  pointer-events: none;
+  width: 100%;
+}
+
+.ytwindow-pip-button .ytwindow-pip-icon-frame,
+.ytwindow-pip-button .ytwindow-pip-icon-window {
+  fill: #fff;
+}
+
+.ytwindow-pip-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -6px;
+}

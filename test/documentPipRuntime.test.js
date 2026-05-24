@@ -1,0 +1,135 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+
+test("Document PiP runtime does not auto-open on load and reports support", () => {
+  const modulePath = require.resolve("../src/documentPipRuntime");
+  delete require.cache[modulePath];
+
+  let requestWindowCalls = 0;
+  const originalDocumentPictureInPicture = globalThis.documentPictureInPicture;
+  globalThis.documentPictureInPicture = {
+    requestWindow: async () => {
+      requestWindowCalls += 1;
+      return {};
+    }
+  };
+
+  const runtime = require("../src/documentPipRuntime");
+
+  assert.equal(runtime.isSupported(), true);
+  assert.equal(requestWindowCalls, 0);
+
+  globalThis.documentPictureInPicture = originalDocumentPictureInPicture;
+  delete globalThis.NativePiPDocumentRuntime;
+});
+
+test("Document PiP runtime falls back to native PiP when unsupported", async () => {
+  const modulePath = require.resolve("../src/documentPipRuntime");
+  delete require.cache[modulePath];
+
+  let nativeCalls = 0;
+  const originalDocumentPictureInPicture = globalThis.documentPictureInPicture;
+  const originalNativeRuntime = globalThis.NativePiPNativeRuntime;
+
+  delete globalThis.documentPictureInPicture;
+  globalThis.NativePiPNativeRuntime = {
+    toggleNativePictureInPicture: async () => {
+      nativeCalls += 1;
+      return { ok: true, action: "enter-native" };
+    }
+  };
+
+  const runtime = require("../src/documentPipRuntime");
+  const result = await runtime.openPremiumPlayer();
+
+  assert.deepEqual(result, { ok: true, action: "enter-native" });
+  assert.equal(nativeCalls, 1);
+
+  globalThis.documentPictureInPicture = originalDocumentPictureInPicture;
+  globalThis.NativePiPNativeRuntime = originalNativeRuntime;
+  delete globalThis.NativePiPDocumentRuntime;
+});
+
+test("Document PiP restore context returns video to its anchor", () => {
+  const modulePath = require.resolve("../src/documentPipRuntime");
+  delete require.cache[modulePath];
+
+  const originalDocument = globalThis.document;
+
+  class FakeNode {
+    constructor(name) {
+      this.name = name;
+      this.children = [];
+      this.parentNode = null;
+      this.isConnected = true;
+      this.attributes = new Map();
+      this.controls = false;
+    }
+
+    appendChild(child) {
+      child.remove();
+      child.parentNode = this;
+      this.children.push(child);
+      return child;
+    }
+
+    insertBefore(child, reference) {
+      child.remove();
+      child.parentNode = this;
+      const index = this.children.indexOf(reference);
+      if (index === -1) {
+        this.children.push(child);
+      } else {
+        this.children.splice(index, 0, child);
+      }
+      return child;
+    }
+
+    remove() {
+      if (!this.parentNode) {
+        return;
+      }
+      this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+      this.parentNode = null;
+    }
+
+    getAttribute(name) {
+      return this.attributes.get(name) ?? null;
+    }
+
+    setAttribute(name, value) {
+      this.attributes.set(name, value);
+    }
+
+    removeAttribute(name) {
+      this.attributes.delete(name);
+    }
+  }
+
+  globalThis.document = {
+    createComment: (text) => new FakeNode(text)
+  };
+
+  const parent = new FakeNode("parent");
+  const video = new FakeNode("video");
+  const next = new FakeNode("next");
+  video.controls = true;
+  video.setAttribute("style", "width: 10px");
+  parent.appendChild(video);
+  parent.appendChild(next);
+
+  const runtime = require("../src/documentPipRuntime");
+  const context = runtime.createRestoreContext(video);
+  const floatingRoot = new FakeNode("floating-root");
+  floatingRoot.appendChild(video);
+
+  runtime.restoreVideo(video, context);
+
+  assert.equal(parent.children[0], video);
+  assert.equal(parent.children[1], next);
+  assert.equal(video.controls, true);
+  assert.equal(video.getAttribute("style"), "width: 10px");
+
+  globalThis.document = originalDocument;
+  delete globalThis.NativePiPDocumentRuntime;
+});

@@ -12,5 +12,25 @@
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "src/videoSelector.js",
+        "src/pipRuntime.js",
+        "src/nativePipRuntime.js",
+        "src/floatingPlayerUI.js",
+        "src/documentPipRuntime.js",
+        "src/youtubeToolbar.js"
+      ],
+      "css": [
+        "src/youtubeToolbar.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }
