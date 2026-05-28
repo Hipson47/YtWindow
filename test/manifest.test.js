@@ -31,6 +31,7 @@ test("manifest scopes content scripts to YouTube only", () => {
     "src/videoSelector.js",
     "src/pipRuntime.js",
     "src/nativePipRuntime.js",
+    "src/pipWindowSizing.js",
     "dist/floatingPlayerUI.global.js",
     "src/documentPipRuntime.js",
     "src/youtubeToolbar.js"

@@ -1,5 +1,11 @@
 export const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 export const AUTO_HIDE_DELAY_MS = 2300;
+export const DEFAULT_FIT_MODE = "fill";
+export const LEGACY_FIT_MODE_STORAGE_KEY = "native-pip-fit-mode";
+export const PREVIOUS_FIT_MODE_STORAGE_KEY = "native-pip-fit-mode-v2";
+export const FIT_MODE_STORAGE_KEY = "native-pip-fit-mode-v3";
+export const FIT_MODE_MIGRATION_KEY = "native-pip-fit-mode-migration-v3";
+export const FIT_MODES = ["fit", "fill"];
 
 export function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -56,6 +62,34 @@ export function applyVolumeChange(video, nextVolume) {
     muted: video.muted,
     volume: video.volume
   };
+}
+
+export function isValidFitMode(mode) {
+  return FIT_MODES.includes(mode);
+}
+
+export function normalizeFitMode(mode, fallback = DEFAULT_FIT_MODE) {
+  return isValidFitMode(mode) ? mode : fallback;
+}
+
+export function objectFitForMode(mode) {
+  return normalizeFitMode(mode) === "fill" ? "cover" : "contain";
+}
+
+export function nextFitMode(mode) {
+  return normalizeFitMode(mode) === "fit" ? "fill" : "fit";
+}
+
+export function resolveStoredFitMode({ storedMode, legacyMode, previousMode } = {}) {
+  if (isValidFitMode(storedMode)) {
+    return storedMode;
+  }
+
+  if (legacyMode || previousMode) {
+    return DEFAULT_FIT_MODE;
+  }
+
+  return DEFAULT_FIT_MODE;
 }
 
 export function speedLabel(speed) {

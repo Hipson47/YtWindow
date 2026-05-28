@@ -50,6 +50,80 @@ test("Document PiP runtime falls back to native PiP when unsupported", async () 
   delete globalThis.NativePiPDocumentRuntime;
 });
 
+test("Document PiP runtime requests an aspect-ratio-aware initial window size", async () => {
+  const sizingModulePath = require.resolve("../src/pipWindowSizing");
+  const runtimeModulePath = require.resolve("../src/documentPipRuntime");
+  delete require.cache[sizingModulePath];
+  delete require.cache[runtimeModulePath];
+
+  const originalScreen = globalThis.screen;
+  const originalInnerWidth = globalThis.innerWidth;
+  const originalInnerHeight = globalThis.innerHeight;
+
+  globalThis.screen = {
+    availHeight: 1080,
+    availWidth: 1920
+  };
+  globalThis.innerHeight = 800;
+  globalThis.innerWidth = 1200;
+
+  require("../src/pipWindowSizing");
+  const runtime = require("../src/documentPipRuntime");
+  const options = await runtime.computeRequestWindowOptions({
+    videoHeight: 1080,
+    videoWidth: 1920
+  });
+
+  assert.equal(options.requestOptions.width, 760);
+  assert.equal(options.requestOptions.height, 428);
+  assert.equal(options.requestOptions.preferInitialWindowPlacement, true);
+  assert.equal(options.source, "video-metadata");
+
+  globalThis.screen = originalScreen;
+  globalThis.innerWidth = originalInnerWidth;
+  globalThis.innerHeight = originalInnerHeight;
+  delete globalThis.NativePiPWindowSizing;
+  delete globalThis.NativePiPDocumentRuntime;
+});
+
+test("Document PiP runtime sets the moved video to cover by default", () => {
+  const source = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src", "documentPipRuntime.js"), "utf8");
+
+  assert.match(source, /video\.style\.objectFit = "cover"/);
+  assert.doesNotMatch(source, /video\.style\.objectFit = "contain"/);
+});
+
+test("Document PiP runtime keeps the session open on YouTube navigation start", () => {
+  const modulePath = require.resolve("../src/documentPipRuntime");
+  delete require.cache[modulePath];
+  const runtime = require("../src/documentPipRuntime");
+
+  const session = runtime.createDocumentSession({
+    initialRestoreContext: {},
+    initialVideo: {},
+    mountedUi: { destroy() {} },
+    pipWindow: { closed: false }
+  });
+
+  session.handleYouTubeNavigateStart = () => {
+    session.navigationInProgress = true;
+  };
+  session.handleYouTubeNavigateStart();
+
+  assert.equal(session.isOpen, true);
+  assert.equal(session.navigationInProgress, true);
+  delete globalThis.NativePiPDocumentRuntime;
+});
+
+test("Document PiP runtime exposes YouTube navigation rebind hooks", () => {
+  const source = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src", "documentPipRuntime.js"), "utf8");
+
+  assert.doesNotMatch(source, /addEventListener\("yt-navigate-start", restoreAndClose\)/);
+  assert.match(source, /addEventListener\("yt-navigate-start", handleYouTubeNavigateStart\)/);
+  assert.match(source, /addEventListener\("yt-navigate-finish", handleYouTubeNavigateFinish\)/);
+  assert.match(source, /session\.mountedUi\?\.updateVideo\?\.\(nextVideo\)/);
+});
+
 test("Document PiP runtime reports a missing floating player UI bundle", async () => {
   const modulePath = require.resolve("../src/documentPipRuntime");
   delete require.cache[modulePath];

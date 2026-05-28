@@ -17,6 +17,29 @@ test("React floating player CSS includes YouTube-like responsive controls", () =
   assert.doesNotMatch(styles, /\.ytp-volume__slider[\s\S]{0,120}display:\s*none/);
 });
 
+test("React floating player defaults video rendering to Fill/Cover", () => {
+  const styles = readFileSync(join(__dirname, "..", "src", "react", "floatingPlayer.css"), "utf8");
+  const source = readFileSync(join(__dirname, "..", "src", "react", "floatingPlayerEntry.jsx"), "utf8");
+  const utilsSource = readFileSync(join(__dirname, "..", "src", "react", "playerUtils.mjs"), "utf8");
+  const videoRule = styles.match(/\.ytp-clone__video video\s*{[\s\S]*?}/)?.[0] || "";
+
+  assert.match(videoRule, /object-fit:\s*cover/);
+  assert.doesNotMatch(videoRule, /object-fit:\s*contain/);
+  assert.match(source, /useState\(DEFAULT_FIT_MODE\)/);
+  assert.match(utilsSource, /PREVIOUS_FIT_MODE_STORAGE_KEY = "native-pip-fit-mode-v2"/);
+  assert.match(utilsSource, /FIT_MODE_STORAGE_KEY = "native-pip-fit-mode-v3"/);
+  assert.match(utilsSource, /FIT_MODE_MIGRATION_KEY = "native-pip-fit-mode-migration-v3"/);
+});
+
+test("React floating player layout keeps controls overlayed over the video", () => {
+  const styles = readFileSync(join(__dirname, "..", "src", "react", "floatingPlayer.css"), "utf8");
+
+  assert.match(styles, /\.ytp-clone\s*{[\s\S]*position:\s*fixed;[\s\S]*inset:\s*0;/);
+  assert.match(styles, /\.ytp-clone__video\s*{[\s\S]*position:\s*absolute;[\s\S]*inset:\s*0;/);
+  assert.match(styles, /\.ytp-clone__overlay\s*{[\s\S]*position:\s*absolute;[\s\S]*inset:\s*0;/);
+  assert.match(styles, /\.ytp-clone__toolbar\s*{[\s\S]*position:\s*absolute;[\s\S]*bottom:\s*0;/);
+});
+
 test("React floating player source avoids native select controls", () => {
   const source = readFileSync(join(__dirname, "..", "src", "react", "floatingPlayerEntry.jsx"), "utf8");
 
@@ -32,6 +55,17 @@ test("React floating player source uses cohesive inline media icons", () => {
   assert.match(source, /speed:/);
   assert.match(source, /viewBox="0 0 36 36"/);
   assert.doesNotMatch(source, /<text/);
+});
+
+test("React floating player preserves the old bottom toolbar control layout", () => {
+  const source = readFileSync(join(__dirname, "..", "src", "react", "floatingPlayerEntry.jsx"), "utf8");
+  const toolbarBlock = source.slice(source.indexOf("<div className=\"ytp-clone__row\">"), source.indexOf("</div>\n        </div>\n      </div>\n    </main>", source.indexOf("<div className=\"ytp-clone__row\">")));
+
+  assert.match(toolbarBlock, /VolumeControl/);
+  assert.match(toolbarBlock, /SpeedMenu/);
+  assert.match(toolbarBlock, /Close floating player/);
+  assert.doesNotMatch(toolbarBlock, /FitModeButton/);
+  assert.doesNotMatch(toolbarBlock, /ytp-fit__button/);
 });
 
 test("seek icons do not render visible numeric labels", () => {
@@ -59,9 +93,28 @@ test("floating player helper functions are stable", async () => {
   assert.equal(floatingPlayerUtils.clampVolume(-1), 0);
   assert.equal(floatingPlayerUtils.steppedVolume(0.98, 1), 1);
   assert.equal(floatingPlayerUtils.steppedVolume(0.02, -1), 0);
+  assert.equal(floatingPlayerUtils.DEFAULT_FIT_MODE, "fill");
+  assert.equal(floatingPlayerUtils.normalizeFitMode(undefined), "fill");
+  assert.equal(floatingPlayerUtils.normalizeFitMode("fit"), "fit");
+  assert.equal(floatingPlayerUtils.objectFitForMode("fit"), "contain");
+  assert.equal(floatingPlayerUtils.objectFitForMode("fill"), "cover");
+  assert.equal(floatingPlayerUtils.objectFitForMode("unexpected"), "cover");
+  assert.equal(floatingPlayerUtils.nextFitMode("fit"), "fill");
+  assert.equal(floatingPlayerUtils.nextFitMode("fill"), "fit");
   assert.equal(floatingPlayerUtils.speedLabel(1), "1x");
   assert.equal(floatingPlayerUtils.speedLabel(1.25), "1.25x");
   assert.deepEqual(floatingPlayerUtils.SPEED_OPTIONS, [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
+});
+
+test("floating player fit-mode storage migration defaults old state to Fill", async () => {
+  const floatingPlayerUtils = await import("../src/react/playerUtils.mjs");
+
+  assert.equal(floatingPlayerUtils.resolveStoredFitMode(), "fill");
+  assert.equal(floatingPlayerUtils.resolveStoredFitMode({ legacyMode: "fit" }), "fill");
+  assert.equal(floatingPlayerUtils.resolveStoredFitMode({ previousMode: "fit" }), "fill");
+  assert.equal(floatingPlayerUtils.resolveStoredFitMode({ storedMode: "fit" }), "fit");
+  assert.equal(floatingPlayerUtils.resolveStoredFitMode({ storedMode: "fill" }), "fill");
+  assert.equal(floatingPlayerUtils.resolveStoredFitMode({ storedMode: "contain" }), "fill");
 });
 
 test("floating player volume helper mutes and unmutes safely", async () => {
