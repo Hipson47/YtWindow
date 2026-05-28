@@ -124,6 +124,10 @@
       pipWindow,
       rebindTimer: 0,
       rebindAttempts: 0,
+      currentVideoCleanup: null,
+      locationPollTimer: 0,
+      lastUrl: globalObject.location?.href || "",
+      mutationObserver: null,
       get isOpen() {
         return Boolean(session.pipWindow && !session.pipWindow.closed && !session.isClosing);
       }
@@ -178,13 +182,30 @@
         globalObject.clearTimeout(session.rebindTimer);
         session.rebindTimer = 0;
       }
+      if (session.locationPollTimer) {
+        globalObject.clearInterval(session.locationPollTimer);
+        session.locationPollTimer = 0;
+      }
+      session.currentVideoCleanup?.();
+      session.currentVideoCleanup = null;
+      session.mutationObserver?.disconnect?.();
+      session.mutationObserver = null;
       if (session.mountedUi) {
         session.mountedUi.destroy();
       }
       restoreVideo(session.currentVideo, session.currentRestoreContext);
       globalObject.removeEventListener("pagehide", restoreAndClose);
+      globalObject.removeEventListener("pagehide", handleOpenerPageHide);
+      globalObject.removeEventListener("popstate", handlePossibleYouTubeNavigation);
+      globalObject.removeEventListener("hashchange", handlePossibleYouTubeNavigation);
+      globalObject.removeEventListener("yt-navigate-start", handleYouTubeNavigateStart);
+      globalObject.removeEventListener("yt-navigate-finish", handleYouTubeNavigateFinish);
+      globalObject.removeEventListener("yt-page-data-updated", handleYouTubeNavigateFinish);
+      globalObject.removeEventListener("yt-player-updated", handleYouTubeNavigateFinish);
       globalObject.document.removeEventListener("yt-navigate-start", handleYouTubeNavigateStart);
       globalObject.document.removeEventListener("yt-navigate-finish", handleYouTubeNavigateFinish);
+      globalObject.document.removeEventListener("yt-page-data-updated", handleYouTubeNavigateFinish);
+      globalObject.document.removeEventListener("yt-player-updated", handleYouTubeNavigateFinish);
 
       if (session.pipWindow && !session.pipWindow.closed) {
         session.pipWindow.close();
@@ -207,8 +228,10 @@
 
       prepareVideoForDocumentPiP(nextVideo);
       discardRestoreContext(session.currentRestoreContext);
+      session.currentVideoCleanup?.();
       session.currentVideo = nextVideo;
       session.currentRestoreContext = nextRestoreContext;
+      session.currentVideoCleanup = watchCurrentVideo(nextVideo);
       session.mountedUi?.updateVideo?.(nextVideo);
 
       if (nextVideo.paused) {
@@ -221,10 +244,23 @@
     function findActivePageVideo() {
       const nextVideo = shared.selectBestVideo();
       if (!nextVideo || nextVideo === session?.currentVideo) {
-        return null;
+        return findFallbackPageVideo();
       }
 
       return nextVideo;
+    }
+
+    function findFallbackPageVideo() {
+      const haveNothing = globalObject.HTMLMediaElement?.HAVE_NOTHING ?? 0;
+      const videos = Array.from(globalObject.document.querySelectorAll("video"));
+      return videos.find((candidate) => (
+        candidate &&
+        candidate !== session?.currentVideo &&
+        candidate.isConnected &&
+        !candidate.ended &&
+        !candidate.disablePictureInPicture &&
+        (candidate.currentSrc || candidate.src || candidate.readyState > haveNothing)
+      )) || null;
     }
 
     function scheduleRebindActiveVideo(delayMs = 120) {
@@ -246,8 +282,8 @@
         }
 
         session.rebindAttempts += 1;
-        if (session.rebindAttempts < 24) {
-          scheduleRebindActiveVideo(180);
+        if (session.rebindAttempts < 60) {
+          scheduleRebindActiveVideo(250);
         } else {
           session.navigationInProgress = false;
           session.rebindAttempts = 0;
@@ -256,13 +292,72 @@
       }, delayMs);
     }
 
-    function handleYouTubeNavigateStart() {
+    function markNavigationAndRebind(delayMs = 120) {
       if (!session || session.isClosing) {
         return;
       }
 
       session.navigationInProgress = true;
       session.rebindAttempts = 0;
+      scheduleRebindActiveVideo(delayMs);
+    }
+
+    function watchCurrentVideo(targetVideo) {
+      const handleCurrentVideoTransition = () => markNavigationAndRebind(0);
+      const events = ["ended", "emptied", "loadstart", "stalled", "suspend"];
+      for (const event of events) {
+        targetVideo.addEventListener(event, handleCurrentVideoTransition);
+      }
+
+      return () => {
+        for (const event of events) {
+          targetVideo.removeEventListener(event, handleCurrentVideoTransition);
+        }
+      };
+    }
+
+    function startPageVideoObserver() {
+      if (!globalObject.MutationObserver || session.mutationObserver) {
+        return;
+      }
+
+      session.mutationObserver = new globalObject.MutationObserver((mutations) => {
+        const hasVideoChange = mutations.some((mutation) => (
+          Array.from(mutation.addedNodes).some((node) => node?.nodeName === "VIDEO" || node?.querySelector?.("video")) ||
+          Array.from(mutation.removedNodes).some((node) => node === session.currentVideo || node?.nodeName === "VIDEO" || node?.querySelector?.("video"))
+        ));
+
+        if (hasVideoChange) {
+          markNavigationAndRebind(80);
+        }
+      });
+
+      session.mutationObserver.observe(globalObject.document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    }
+
+    function startLocationWatcher() {
+      if (session.locationPollTimer) {
+        return;
+      }
+
+      session.locationPollTimer = globalObject.setInterval(() => {
+        const href = globalObject.location?.href || "";
+        if (href && href !== session.lastUrl) {
+          session.lastUrl = href;
+          markNavigationAndRebind(120);
+        }
+      }, 500);
+    }
+
+    function handleYouTubeNavigateStart() {
+      if (!session || session.isClosing) {
+        return;
+      }
+
+      markNavigationAndRebind(0);
     }
 
     function handleYouTubeNavigateFinish() {
@@ -270,9 +365,20 @@
         return;
       }
 
-      session.navigationInProgress = true;
-      session.rebindAttempts = 0;
-      scheduleRebindActiveVideo();
+      markNavigationAndRebind();
+    }
+
+    function handlePossibleYouTubeNavigation() {
+      markNavigationAndRebind();
+    }
+
+    function handleOpenerPageHide() {
+      if (session?.navigationInProgress) {
+        scheduleRebindActiveVideo(0);
+        return;
+      }
+
+      restoreAndClose();
     }
 
     try {
@@ -317,12 +423,23 @@
       session.rebindActiveVideo = () => scheduleRebindActiveVideo(0);
       session.handleYouTubeNavigateStart = handleYouTubeNavigateStart;
       session.handleYouTubeNavigateFinish = handleYouTubeNavigateFinish;
+      session.currentVideoCleanup = watchCurrentVideo(video);
       globalObject.__NativePiPDocumentSession = session;
 
       pipWindow.addEventListener("pagehide", restoreAndClose, { once: true });
-      globalObject.addEventListener("pagehide", restoreAndClose);
+      globalObject.addEventListener("pagehide", handleOpenerPageHide);
+      globalObject.addEventListener("popstate", handlePossibleYouTubeNavigation);
+      globalObject.addEventListener("hashchange", handlePossibleYouTubeNavigation);
+      globalObject.addEventListener("yt-navigate-start", handleYouTubeNavigateStart);
+      globalObject.addEventListener("yt-navigate-finish", handleYouTubeNavigateFinish);
+      globalObject.addEventListener("yt-page-data-updated", handleYouTubeNavigateFinish);
+      globalObject.addEventListener("yt-player-updated", handleYouTubeNavigateFinish);
       globalObject.document.addEventListener("yt-navigate-start", handleYouTubeNavigateStart);
       globalObject.document.addEventListener("yt-navigate-finish", handleYouTubeNavigateFinish);
+      globalObject.document.addEventListener("yt-page-data-updated", handleYouTubeNavigateFinish);
+      globalObject.document.addEventListener("yt-player-updated", handleYouTubeNavigateFinish);
+      startPageVideoObserver();
+      startLocationWatcher();
 
       if (video.paused) {
         await video.play().catch(() => {});

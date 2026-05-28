@@ -73,22 +73,14 @@ export function normalizeFitMode(mode, fallback = DEFAULT_FIT_MODE) {
 }
 
 export function objectFitForMode(mode) {
-  return normalizeFitMode(mode) === "fill" ? "cover" : "contain";
+  return "cover";
 }
 
 export function nextFitMode(mode) {
-  return normalizeFitMode(mode) === "fit" ? "fill" : "fit";
+  return DEFAULT_FIT_MODE;
 }
 
 export function resolveStoredFitMode({ storedMode, legacyMode, previousMode } = {}) {
-  if (isValidFitMode(storedMode)) {
-    return storedMode;
-  }
-
-  if (legacyMode || previousMode) {
-    return DEFAULT_FIT_MODE;
-  }
-
   return DEFAULT_FIT_MODE;
 }
 

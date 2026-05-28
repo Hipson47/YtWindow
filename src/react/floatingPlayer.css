@@ -142,11 +142,11 @@ body {
 }
 
 .ytp-clone__row {
-  display: grid;
-  grid-template-columns: auto auto minmax(62px, auto) minmax(80px, 1fr) auto auto;
+  display: flex;
   align-items: center;
   gap: clamp(4px, 1.1vw, 10px);
   min-width: 0;
+  width: 100%;
 }
 
 .ytp-clone__left,
@@ -158,15 +158,23 @@ body {
 }
 
 .ytp-clone__left {
+  flex: 0 0 auto;
   gap: clamp(1px, 0.6vw, 5px);
 }
 
+.ytp-clone__spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
 .ytp-clone__right {
+  flex: 0 0 auto;
   justify-content: flex-end;
   gap: clamp(3px, 0.8vw, 7px);
 }
 
 .ytp-clone__time {
+  flex: 0 0 auto;
   gap: 4px;
   color: rgba(255, 255, 255, 0.9);
   font-size: clamp(11px, 2.7vw, 13px);
@@ -483,12 +491,12 @@ body {
   }
 
   .ytp-clone__row {
-    grid-template-columns: auto minmax(52px, auto) minmax(58px, 1fr) auto auto;
+    gap: 2px;
   }
 
-  .ytp-clone__row .ytp-secondary,
-  .ytp-speed__button svg {
-    display: none;
+  .ytp-speed__button {
+    min-width: 42px;
+    padding: 0 5px;
   }
 
   .ytp-volume__slider {

@@ -4,19 +4,12 @@ import styles from "./floatingPlayer.css?raw";
 import {
   AUTO_HIDE_DELAY_MS,
   DEFAULT_FIT_MODE,
-  FIT_MODE_MIGRATION_KEY,
-  FIT_MODE_STORAGE_KEY,
-  LEGACY_FIT_MODE_STORAGE_KEY,
-  PREVIOUS_FIT_MODE_STORAGE_KEY,
   SPEED_OPTIONS,
   applyVolumeChange,
   boundedSeekTime,
   formatTime,
-  nextFitMode,
-  normalizeFitMode,
   objectFitForMode,
   progressRatio,
-  resolveStoredFitMode,
   speedLabel,
   steppedVolume
 } from "./playerUtils.mjs";
@@ -52,81 +45,6 @@ function IconButton({ ariaLabel, children, className = "", onClick, title = aria
       {children}
     </button>
   );
-}
-
-function readLocalFitMode(ownerWindow) {
-  try {
-    const storedMode = ownerWindow.localStorage?.getItem(FIT_MODE_STORAGE_KEY) || globalThis.localStorage?.getItem(FIT_MODE_STORAGE_KEY);
-    if (storedMode) {
-      return resolveStoredFitMode({ storedMode });
-    }
-
-    // v3 intentionally ignores older Fit/Contain keys, which could keep users stuck with black bars.
-    ownerWindow.localStorage?.setItem(FIT_MODE_MIGRATION_KEY, "done");
-    ownerWindow.localStorage?.setItem(FIT_MODE_STORAGE_KEY, DEFAULT_FIT_MODE);
-    globalThis.localStorage?.setItem(FIT_MODE_MIGRATION_KEY, "done");
-    globalThis.localStorage?.setItem(FIT_MODE_STORAGE_KEY, DEFAULT_FIT_MODE);
-    return DEFAULT_FIT_MODE;
-  } catch {
-    return DEFAULT_FIT_MODE;
-  }
-}
-
-function writeLocalFitMode(ownerWindow, mode) {
-  try {
-    ownerWindow.localStorage?.setItem(FIT_MODE_STORAGE_KEY, mode);
-  } catch {}
-
-  try {
-    globalThis.localStorage?.setItem(FIT_MODE_STORAGE_KEY, mode);
-  } catch {}
-}
-
-function readStoredFitMode(ownerWindow) {
-  const storage = globalThis.chrome?.storage?.local;
-  if (!storage?.get) {
-    return Promise.resolve(readLocalFitMode(ownerWindow));
-  }
-
-  return new Promise((resolve) => {
-    try {
-      storage.get([FIT_MODE_STORAGE_KEY, PREVIOUS_FIT_MODE_STORAGE_KEY, LEGACY_FIT_MODE_STORAGE_KEY, FIT_MODE_MIGRATION_KEY], (result) => {
-        if (globalThis.chrome?.runtime?.lastError) {
-          resolve(readLocalFitMode(ownerWindow));
-          return;
-        }
-
-        const storedMode = result?.[FIT_MODE_STORAGE_KEY];
-        if (storedMode) {
-          resolve(resolveStoredFitMode({ storedMode }));
-          return;
-        }
-
-        // v3 migration: old Fit/Contain state is reset to Fill/Cover unless the user chooses Fit again.
-        storage.set?.({
-          [FIT_MODE_MIGRATION_KEY]: "done",
-          [FIT_MODE_STORAGE_KEY]: DEFAULT_FIT_MODE
-        });
-        writeLocalFitMode(ownerWindow, DEFAULT_FIT_MODE);
-        resolve(DEFAULT_FIT_MODE);
-      });
-    } catch {
-      resolve(readLocalFitMode(ownerWindow));
-    }
-  });
-}
-
-function writeStoredFitMode(ownerWindow, mode) {
-  const normalizedMode = normalizeFitMode(mode);
-  const storage = globalThis.chrome?.storage?.local;
-
-  if (storage?.set) {
-    try {
-      storage.set({ [FIT_MODE_STORAGE_KEY]: normalizedMode });
-    } catch {}
-  }
-
-  writeLocalFitMode(ownerWindow, normalizedMode);
 }
 
 function ProgressBar({ currentTime, duration, onSeek, onReveal, ownerWindow }) {
@@ -327,7 +245,6 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
   const hideTimerRef = useRef(0);
   const frameRef = useRef(0);
   const lastNonZeroVolumeRef = useRef(video.volume > 0 ? video.volume : 1);
-  const [fitMode, setFitMode] = useState(DEFAULT_FIT_MODE);
   const [videoState, setVideoState] = useState(() => readVideoState(video));
   const [volumeActive, setVolumeActive] = useState(false);
   const [visible, setVisible] = useState(true);
@@ -345,23 +262,9 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
   }, [video]);
 
   useEffect(() => {
-    let cancelled = false;
-    readStoredFitMode(ownerWindow).then((storedMode) => {
-      if (!cancelled) {
-        setFitMode(normalizeFitMode(storedMode));
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [ownerWindow]);
-
-  useEffect(() => {
-    const objectFit = objectFitForMode(fitMode);
-    video.style.objectFit = objectFit;
-    video.dataset.nativePipFitMode = normalizeFitMode(fitMode);
-  }, [fitMode, video]);
+    video.style.objectFit = objectFitForMode(DEFAULT_FIT_MODE);
+    video.dataset.nativePipFitMode = DEFAULT_FIT_MODE;
+  }, [video]);
 
   const sync = useCallback(() => {
     setVideoState(readVideoState(video));
@@ -448,13 +351,6 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
     sync();
   }, [reveal, sync, video]);
 
-  const toggleFitMode = useCallback(() => {
-    const mode = nextFitMode(fitMode);
-    setFitMode(mode);
-    writeStoredFitMode(ownerWindow, mode);
-    reveal();
-  }, [fitMode, ownerWindow, reveal]);
-
   useEffect(() => {
     if (!videoState.muted && videoState.volume > 0) {
       lastNonZeroVolumeRef.current = videoState.volume;
@@ -486,9 +382,6 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
       } else if (event.key.toLowerCase() === "m") {
         event.preventDefault();
         toggleMute();
-      } else if (event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        toggleFitMode();
       }
     };
 
@@ -534,7 +427,7 @@ function FloatingPlayer({ onRestore, ownerWindow, video }) {
               <span className="ytp-clone__divider">/</span>
               <span className="ytp-clone__duration">{formatTime(videoState.duration)}</span>
             </div>
-            <div />
+            <div className="ytp-clone__spacer" aria-hidden="true" />
             <div className="ytp-clone__right">
               <SpeedMenu ownerWindow={ownerWindow} playbackRate={videoState.playbackRate} onReveal={reveal} onSpeed={(speed) => {
                 video.playbackRate = speed;

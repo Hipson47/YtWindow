@@ -119,9 +119,25 @@ test("Document PiP runtime exposes YouTube navigation rebind hooks", () => {
   const source = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src", "documentPipRuntime.js"), "utf8");
 
   assert.doesNotMatch(source, /addEventListener\("yt-navigate-start", restoreAndClose\)/);
+  assert.doesNotMatch(source, /globalObject\.addEventListener\("pagehide", restoreAndClose\)/);
   assert.match(source, /addEventListener\("yt-navigate-start", handleYouTubeNavigateStart\)/);
   assert.match(source, /addEventListener\("yt-navigate-finish", handleYouTubeNavigateFinish\)/);
+  assert.match(source, /addEventListener\("yt-page-data-updated", handleYouTubeNavigateFinish\)/);
+  assert.match(source, /addEventListener\("yt-player-updated", handleYouTubeNavigateFinish\)/);
+  assert.match(source, /globalObject\.addEventListener\("pagehide", handleOpenerPageHide\)/);
   assert.match(source, /session\.mountedUi\?\.updateVideo\?\.\(nextVideo\)/);
+});
+
+test("Document PiP runtime watches autoplay video replacement without closing the window", () => {
+  const source = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src", "documentPipRuntime.js"), "utf8");
+
+  assert.match(source, /function watchCurrentVideo\(targetVideo\)/);
+  assert.match(source, /"ended", "emptied", "loadstart", "stalled", "suspend"/);
+  assert.match(source, /new globalObject\.MutationObserver/);
+  assert.match(source, /session\.locationPollTimer = globalObject\.setInterval/);
+  assert.match(source, /findFallbackPageVideo/);
+  assert.match(source, /function handleOpenerPageHide\(\)/);
+  assert.match(source, /if \(session\?\.navigationInProgress\)/);
 });
 
 test("Document PiP runtime reports a missing floating player UI bundle", async () => {
